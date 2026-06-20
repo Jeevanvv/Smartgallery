@@ -43,6 +43,7 @@ export type EventSyncResult = {
   scanned: number;
   created: number;
   updated: number;
+  queued: number;
   photos_total: number;
 };
 
@@ -104,8 +105,12 @@ export async function getMe(accessToken: string) {
   return apiFetch<Photographer>("/auth/me", accessToken);
 }
 
-export async function listEvents(accessToken: string) {
-  return apiFetch<EventListResponse>("/events", accessToken);
+export async function listEvents(
+  accessToken: string,
+  status: "active" | "archived" | "all" = "active"
+) {
+  const query = status === "active" ? "" : `?status=${encodeURIComponent(status)}`;
+  return apiFetch<EventListResponse>(`/events${query}`, accessToken);
 }
 
 export async function createEvent(
@@ -120,6 +125,14 @@ export async function createEvent(
 
 export async function deleteEvent(accessToken: string, eventId: string) {
   return apiFetch<void>(`/events/${eventId}`, accessToken, { method: "DELETE" });
+}
+
+export async function restoreEvent(accessToken: string, eventId: string) {
+  return apiFetch<Event>(`/events/${eventId}/restore`, accessToken, { method: "POST" });
+}
+
+export async function permanentlyDeleteEvent(accessToken: string, eventId: string) {
+  return apiFetch<void>(`/events/${eventId}/permanent`, accessToken, { method: "DELETE" });
 }
 
 export async function syncEvent(accessToken: string, eventId: string) {

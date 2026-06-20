@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+/* eslint-disable @next/next/no-img-element */
+import { useEffect, useRef, useState } from "react";
 
 type SearchPhoto = {
   id: string;
@@ -24,10 +25,161 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
 
 export default function PublicEventSearch({ slug, ready }: Props) {
   const [file, setFile] = useState<File | null>(null);
+  const [selfiePreviewUrl, setSelfiePreviewUrl] = useState<string | null>(null);
   const [consentChecked, setConsentChecked] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [eventActive, setEventActive] = useState(true);
   const [result, setResult] = useState<SearchResult | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+      if (selfiePreviewUrl) {
+        URL.revokeObjectURL(selfiePreviewUrl);
+      }
+    };
+  }, [selfiePreviewUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!cameraOpen || !video || !stream) {
+      return;
+    }
+
+    video.srcObject = stream;
+    const markReady = () => setCameraReady(true);
+    video.addEventListener("loadedmetadata", markReady);
+    video.addEventListener("canplay", markReady);
+    video.play().catch((err) => {
+      setError(err instanceof Error ? err.message : "Camera preview could not start.");
+    });
+
+    return () => {
+      video.removeEventListener("loadedmetadata", markReady);
+      video.removeEventListener("canplay", markReady);
+      video.srcObject = null;
+    };
+  }, [cameraOpen]);
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraOpen(false);
+    setCameraStarting(false);
+    setCameraReady(false);
+  }
+
+  function setSelfieFile(nextFile: File | null) {
+    if (selfiePreviewUrl) {
+      URL.revokeObjectURL(selfiePreviewUrl);
+    }
+    setFile(nextFile);
+    setSelfiePreviewUrl(nextFile ? URL.createObjectURL(nextFile) : null);
+    setResult(null);
+  }
+
+  async function startCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Camera capture is not available in this browser. Choose a selfie file instead.");
+      return;
+    }
+
+    setCameraStarting(true);
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Camera permission was denied.");
+      stopCamera();
+    } finally {
+      setCameraStarting(false);
+    }
+  }
+
+  function captureSelfie() {
+    const video = videoRef.current;
+    if (!cameraReady || !video || !video.videoWidth || !video.videoHeight) {
+      setError("Camera is not ready yet. Try again in a moment.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setError("Could not capture selfie from camera.");
+      return;
+    }
+
+    context.translate(canvas.width, 0);
+    context.scale(-1, 1);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setError("Could not capture selfie from camera.");
+          return;
+        }
+        setSelfieFile(new File([blob], "selfie.jpg", { type: "image/jpeg" }));
+        stopCamera();
+      },
+      "image/jpeg",
+      0.92
+    );
+  }
+
+  async function ensureEventActive() {
+    const res = await fetch(`${API_URL}/public/events/${slug}`, { cache: "no-store" });
+    if (!res.ok) {
+      setEventActive(false);
+      setResult(null);
+      stopCamera();
+      return false;
+    }
+    setEventActive(true);
+    return true;
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkActive = async () => {
+      const res = await fetch(`${API_URL}/public/events/${slug}`, { cache: "no-store" });
+      if (!cancelled && !res.ok) {
+        setEventActive(false);
+        setResult(null);
+        stopCamera();
+      }
+    };
+    const handleFocus = () => {
+      void checkActive();
+    };
+    const intervalId = window.setInterval(checkActive, 15000);
+
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [slug]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,6 +195,12 @@ export default function PublicEventSearch({ slug, ready }: Props) {
     setLoading(true);
     setError(null);
 
+    const active = await ensureEventActive();
+    if (!active) {
+      setLoading(false);
+      return;
+    }
+
     const formData = new FormData();
     formData.append("selfie", file);
 
@@ -57,7 +215,9 @@ export default function PublicEventSearch({ slug, ready }: Props) {
         throw new Error(body.detail ?? "Search failed");
       }
 
-      setResult(body as SearchResult);
+      const searchResult = body as SearchResult;
+      setResult(searchResult);
+      window.dispatchEvent(new Event(`smartgallery:search-complete:${slug}`));
     } catch (err) {
       setResult(null);
       setError(err instanceof Error ? err.message : "Search failed");
@@ -66,113 +226,225 @@ export default function PublicEventSearch({ slug, ready }: Props) {
     }
   }
 
-  return (
-    <div className="mt-8 sm:mt-10">
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm sm:p-6"
-      >
-        <h2 className="text-lg font-semibold text-slate-900">Find my photos</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Upload a clear selfie. It is used only for search and is not stored.
+  if (!eventActive) {
+    return (
+      <div className="glass-card rounded-[2rem] p-8 text-center">
+        <p className="text-sm font-black uppercase tracking-[0.22em] text-[#d97742]">
+          Not active
         </p>
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-          <p className="font-medium text-slate-900">Privacy notice</p>
+        <h2 className="mt-3 text-3xl font-black text-[#17201d]">
+          This event link is no longer active.
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-[#5f6762]">
+          Please check with your photographer for the latest gallery link.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <form onSubmit={handleSubmit} className="glass-card rounded-[2rem] p-5 text-left sm:p-7">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#d97742]">
+              Find my photos
+            </p>
+            <h2 className="mt-3 text-3xl font-black text-[#17201d]">
+              Start with a clear selfie
+            </h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-[#5f6762]">
+              Use the camera for the fastest search, or upload a bright front-facing
+              photo from your phone.
+            </p>
+          </div>
+          <span
+            className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
+              ready ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+            }`}
+          >
+            {ready ? "Ready to search" : "Still indexing"}
+          </span>
+        </div>
+
+        <div className="mt-5 rounded-[1.5rem] border border-[#e5d8c3] bg-white/65 p-4 text-sm leading-6 text-[#5f6762]">
+          <p className="font-black text-[#17201d]">Privacy promise</p>
           <p className="mt-2">
-            Your selfie is processed only to find matching event photos. It is not added to the
-            gallery, and guests should upload only their own face or a face they are authorized to
-            search for.
+            Your selfie is processed only to find matching event photos. It is not
+            added to the gallery, and guests should search only with their own face
+            or a face they are allowed to use.
           </p>
         </div>
 
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/jpg,image/webp"
-          disabled={!ready || loading}
-          onChange={(e) => {
-            setFile(e.target.files?.[0] ?? null);
-            setResult(null);
-          }}
-          className="mt-4 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700"
-        />
+        <div className="mt-5 grid gap-3 sm:grid-cols-[auto_1fr]">
+          <button
+            type="button"
+            disabled={!eventActive || !ready || loading || cameraStarting}
+            onClick={cameraOpen ? stopCamera : startCamera}
+            className="rounded-full bg-[#24483f] px-6 py-4 text-sm font-black text-white shadow-xl shadow-[#24483f]/15 transition hover:bg-[#132b26] disabled:cursor-not-allowed disabled:bg-[#c8c1b6]"
+          >
+            {cameraOpen ? "Close camera" : cameraStarting ? "Opening camera..." : "Take selfie"}
+          </button>
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-full border border-[#d7c8af] bg-white/75 px-5 py-4 text-sm font-bold text-[#5f6762] transition hover:border-[#24483f]">
+            <span className="truncate">{file ? file.name : "Or upload a selfie file"}</span>
+            <span className="shrink-0 text-[#24483f]">Browse</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/webp"
+              capture="user"
+              disabled={!eventActive || !ready || loading}
+              onChange={(e) => {
+                setSelfieFile(e.target.files?.[0] ?? null);
+              }}
+              className="sr-only"
+            />
+          </label>
+        </div>
 
-        <label className="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+        {cameraOpen && (
+          <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-[#17201d] bg-[#030712]">
+            <div className="relative">
+              <video
+                ref={videoRef}
+                playsInline
+                autoPlay
+                muted
+                className="aspect-[4/3] w-full -scale-x-100 object-cover"
+              />
+              {!cameraReady && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#030712] text-sm font-black text-white">
+                  Starting camera...
+                </div>
+              )}
+              <div className="pointer-events-none absolute inset-x-8 top-8 h-20 rounded-t-full border-x-2 border-t-2 border-white/45" />
+            </div>
+            <div className="flex flex-wrap gap-3 bg-[#fffaf1] p-4">
+              <button
+                type="button"
+                onClick={captureSelfie}
+                disabled={!cameraReady}
+                className="rounded-full bg-[#d97742] px-6 py-3 text-sm font-black text-white transition hover:bg-[#b85f30] disabled:cursor-not-allowed disabled:bg-[#c8c1b6]"
+              >
+                Capture selfie
+              </button>
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="rounded-full border border-[#d7c8af] px-6 py-3 text-sm font-black text-[#24483f] transition hover:border-[#24483f]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {selfiePreviewUrl && (
+          <div className="mt-5 flex flex-col gap-4 rounded-[1.5rem] border border-[#e5d8c3] bg-white/65 p-4 sm:flex-row sm:items-center">
+            <img
+              src={selfiePreviewUrl}
+              alt="Selected selfie preview"
+              className="h-28 w-28 rounded-2xl object-cover"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black text-[#17201d]">{file?.name}</p>
+              <p className="mt-1 text-sm font-medium text-[#5f6762]">
+                Looks good. Confirm consent and start search.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <label className="mt-5 flex items-start gap-3 rounded-[1.5rem] border border-[#e5d8c3] bg-white/75 p-4 text-sm font-medium leading-6 text-[#5f6762]">
           <input
             type="checkbox"
             checked={consentChecked}
-            disabled={!ready || loading}
+            disabled={!eventActive || !ready || loading}
             onChange={(e) => setConsentChecked(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            className="mt-1 h-4 w-4 rounded border-[#d7c8af] text-[#24483f] focus:ring-[#24483f]"
           />
           <span>
-            I confirm this selfie is mine or I have permission to use it for photo search, and I
+            I confirm this selfie is mine or I have permission to use it, and I
             understand it will be processed only to find matching event photos.
           </span>
         </label>
 
         <button
           type="submit"
-          disabled={!ready || loading || !consentChecked}
-          className="mt-4 w-full rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
+          disabled={!eventActive || !ready || loading || !consentChecked || !file}
+          className="mt-5 w-full rounded-full bg-[#24483f] px-6 py-4 text-sm font-black text-white shadow-xl shadow-[#24483f]/15 transition hover:bg-[#132b26] disabled:cursor-not-allowed disabled:bg-[#c8c1b6] sm:w-auto"
         >
-          {loading ? "Searching..." : "Search photos"}
+          {loading ? "Searching your gallery..." : "Search my photos"}
         </button>
 
         {!ready && (
-          <p className="mt-3 text-sm text-amber-700">
+          <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             This event is still indexing. Please try again once the photographer finishes setup.
           </p>
         )}
 
         {error && (
-          <p className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {error}
           </p>
         )}
       </form>
 
       {result && (
-        <section className="mt-8 text-left">
-          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-            <h3 className="text-xl font-semibold text-slate-900">Matches</h3>
-            <p className="text-sm text-slate-500">{result.match_count} photos found</p>
+        <section className="mt-8 text-left lg:w-[calc(100vw-3rem)] lg:max-w-6xl">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#d97742]">
+                Matches
+              </p>
+              <h3 className="mt-2 text-3xl font-black text-[#17201d]">
+                {result.match_count} photos found
+              </h3>
+            </div>
+            <p className="text-sm font-medium text-[#5f6762]">
+              Open a photo to download the original.
+            </p>
           </div>
 
           {result.photos.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              No matches found yet. Try a brighter, front-facing selfie.
+            <div className="glass-card rounded-[2rem] p-8 text-center">
+              <h4 className="text-2xl font-black text-[#17201d]">No matches yet.</h4>
+              <p className="mt-2 text-sm leading-6 text-[#5f6762]">
+                Try a brighter, front-facing selfie where your face is clear.
+              </p>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5">
               {result.photos.map((photo) => (
                 <article
                   key={photo.id}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                  className="group overflow-hidden rounded-[1.75rem] border border-[#e5d8c3] bg-[#fffaf1]/85 shadow-xl shadow-[#24483f]/10"
                 >
-                  <img
-                    src={`${API_URL}/public/events/${slug}/photos/${photo.id}/thumbnail`}
-                    alt={photo.filename}
-                    className="h-56 w-full object-cover"
-                  />
-                  <div className="p-4">
-                    <p className="truncate text-sm font-medium text-slate-900">{photo.filename}</p>
-                    <div className="mt-3 flex flex-wrap gap-3">
+                  <div className="overflow-hidden bg-[#17201d]">
+                    <img
+                      src={`${API_URL}/public/events/${slug}/photos/${photo.id}/thumbnail`}
+                      alt={photo.filename}
+                      className="h-64 w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                  </div>
+                  <div className="p-5">
+                    <p className="truncate text-sm font-black text-[#17201d]">{photo.filename}</p>
+                    <div className="mt-4 flex flex-wrap gap-3">
                       <a
                         href={`${API_URL}/public/events/${slug}/photos/${photo.id}/download`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm font-medium text-indigo-600 hover:underline"
+                        className="rounded-full bg-[#24483f] px-4 py-2 text-sm font-black text-white transition hover:bg-[#132b26]"
                       >
-                        Open
+                        Open photo
                       </a>
                       {photo.drive_url && (
                         <a
                           href={photo.drive_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm font-medium text-slate-600 hover:underline"
+                          className="rounded-full border border-[#d7c8af] px-4 py-2 text-sm font-black text-[#24483f] transition hover:border-[#24483f]"
                         >
-                          Drive
+                          View in Drive
                         </a>
                       )}
                     </div>

@@ -23,10 +23,11 @@ router = APIRouter(prefix="/events", tags=["events"])
 
 @router.get("", response_model=EventListResponse)
 def list_events(
+    status: str = "active",
     photographer: Photographer = Depends(get_current_photographer),
     db: Session = Depends(get_db),
 ):
-    return event_service.list_events(db, photographer)
+    return event_service.list_events(db, photographer, status_filter=status)
 
 
 @router.get("/drive-folders", response_model=DriveFolderListResponse)
@@ -65,6 +66,24 @@ def delete_event(
     event_service.archive_event(db, photographer, event_id)
 
 
+@router.post("/{event_id}/restore", response_model=EventResponse)
+def restore_event(
+    event_id: uuid.UUID,
+    photographer: Photographer = Depends(get_current_photographer),
+    db: Session = Depends(get_db),
+):
+    return event_service.restore_event(db, photographer, event_id)
+
+
+@router.delete("/{event_id}/permanent", status_code=204)
+def permanently_delete_event(
+    event_id: uuid.UUID,
+    photographer: Photographer = Depends(get_current_photographer),
+    db: Session = Depends(get_db),
+):
+    event_service.permanently_delete_event(db, photographer, event_id)
+
+
 @router.post("/{event_id}/sync", response_model=EventSyncResponse)
 def sync_event(
     event_id: uuid.UUID,
@@ -73,10 +92,12 @@ def sync_event(
 ):
     event = event_service.get_event_model(db, photographer, event_id)
     result = drive_service.sync_event_photos(db, photographer, event)
+    queue_result = indexing_service.queue_pending_event_photos(db, event)
     return EventSyncResponse(
         scanned=result.scanned,
         created=result.created,
         updated=result.updated,
+        queued=queue_result.queued,
         photos_total=result.photos_total,
     )
 

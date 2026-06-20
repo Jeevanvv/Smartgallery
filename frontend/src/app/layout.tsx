@@ -9,7 +9,7 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "SmartGallery — Find your event photos",
+  title: "SmartGallery - Find your event photos",
   description:
     "Take a selfie and instantly find all photos featuring your face at any event.",
 };

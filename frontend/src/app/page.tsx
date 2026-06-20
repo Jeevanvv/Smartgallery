@@ -2,75 +2,92 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <span className="text-lg font-semibold text-slate-900">
+    <div className="min-h-screen overflow-hidden">
+      <header className="border-b border-[#e5d8c3]/80 bg-[#fffaf1]/75 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-6">
+          <Link href="/" className="text-lg font-black tracking-tight text-[#17201d]">
             SmartGallery
-          </span>
+          </Link>
           <Link
             href="/admin"
-            className="text-sm font-medium text-slate-600 hover:text-slate-900"
+            className="rounded-full border border-[#d7c8af] bg-white/60 px-4 py-2 text-sm font-bold text-[#24483f] transition hover:border-[#24483f] hover:bg-white"
           >
             Photographer login
           </Link>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-20 text-center">
-        <p className="mb-4 text-sm font-medium uppercase tracking-wide text-indigo-600">
-          Face recognition for event photography
-        </p>
-        <h1 className="mb-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-          Find your photos in seconds
-        </h1>
-        <p className="mx-auto mb-10 max-w-2xl text-lg text-slate-600">
-          Guests take a selfie and instantly see every photo from the event that
-          features their face. Photographers keep using Google Drive — no new
-          workflow.
-        </p>
+      <main className="soft-grid relative mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-24">
+        <section className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+          <div>
+            <p className="mb-5 inline-flex rounded-full border border-[#d7c8af] bg-[#fffaf1]/80 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-[#d97742]">
+              Face search for event photos
+            </p>
+            <h1 className="max-w-3xl text-balance text-5xl font-black leading-[0.95] tracking-tight text-[#17201d] sm:text-7xl">
+              Guests find their photos with one selfie.
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-[#5f6762]">
+              SmartGallery turns a photographer&apos;s Google Drive folder into a private,
+              searchable guest gallery. No guest accounts, no manual photo hunting, no
+              new upload workflow.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link
+                href="/admin"
+                className="rounded-full bg-[#24483f] px-7 py-4 text-center text-sm font-black text-white shadow-xl shadow-[#24483f]/20 transition hover:bg-[#132b26]"
+              >
+                Open photographer dashboard
+              </Link>
+              <span className="text-sm font-medium text-[#6f756f]">
+                Event links open directly at{" "}
+                <code className="rounded-full bg-white/80 px-2 py-1">/event/name</code>
+              </span>
+            </div>
+          </div>
 
-        <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <Link
-            href="/admin"
-            className="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-          >
-            I&apos;m a photographer
-          </Link>
-          <p className="text-sm text-slate-500">
-            Have an event link? Open it directly — e.g.{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
-              /event/your-event
-            </code>
-          </p>
-        </div>
+          <div className="glass-card relative rounded-[2rem] p-5">
+            <div className="rounded-[1.5rem] bg-[#17201d] p-5 text-white">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#f7d8bd]">Live event</p>
+                  <h2 className="mt-2 text-2xl font-black">Wedding Gallery</h2>
+                </div>
+                <span className="rounded-full bg-emerald-300/20 px-3 py-1 text-xs font-bold text-emerald-100">
+                  Ready
+                </span>
+              </div>
+              <div className="mt-8 grid grid-cols-3 gap-3">
+                {["Sync", "Index", "Search"].map((step, index) => (
+                  <div key={step} className="rounded-2xl bg-white/10 p-4">
+                    <p className="text-3xl font-black">{index + 1}</p>
+                    <p className="mt-3 text-sm text-white/75">{step}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 rounded-3xl bg-[#fffaf1] p-5 text-[#17201d]">
+                <p className="text-sm font-black">Guest experience</p>
+                <p className="mt-2 text-sm leading-6 text-[#5f6762]">
+                  Open link, take selfie, download matched photos. The whole flow
+                  is designed for a phone at the event.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <div className="mt-20 grid gap-6 text-left sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-3 text-2xl">📸</div>
-            <h2 className="mb-2 font-semibold text-slate-900">For photographers</h2>
-            <p className="text-sm text-slate-600">
-              Link a Google Drive folder. We index faces in the background and
-              give you a shareable link for guests.
-            </p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-3 text-2xl">👤</div>
-            <h2 className="mb-2 font-semibold text-slate-900">For guests</h2>
-            <p className="text-sm text-slate-600">
-              No account needed. Take a selfie, get your photos. Your selfie is
-              never stored.
-            </p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-3 text-2xl">🤖</div>
-            <h2 className="mb-2 font-semibold text-slate-900">Powered by AI</h2>
-            <p className="text-sm text-slate-600">
-              Open-source face recognition (InsightFace). No per-query API
-              costs.
-            </p>
-          </div>
-        </div>
+        <section className="mt-16 grid gap-4 md:grid-cols-3">
+          {[
+            ["01", "Connect Drive", "Pick the event folder you already use for client delivery."],
+            ["02", "Index in background", "Photos are scanned and queued while the dashboard shows progress."],
+            ["03", "Share the link", "Guests search privately with a selfie and download their matches."],
+          ].map(([number, title, copy]) => (
+            <article key={title} className="glass-card rounded-[1.5rem] p-6">
+              <p className="text-sm font-black text-[#d97742]">{number}</p>
+              <h2 className="mt-4 text-xl font-black text-[#17201d]">{title}</h2>
+              <p className="mt-3 text-sm leading-6 text-[#5f6762]">{copy}</p>
+            </article>
+          ))}
+        </section>
       </main>
     </div>
   );

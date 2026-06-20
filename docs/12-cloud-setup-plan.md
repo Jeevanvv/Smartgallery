@@ -256,6 +256,8 @@ DATABASE_URL=postgresql://postgres.[ref]:[password]@...pooler.supabase.com:6543/
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase-settings
 SUPABASE_SERVICE_ROLE_KEY=eyJhbG...  # backend only
+GOOGLE_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
 
 # Redis Cloud
 REDIS_URL=redis://default:password@host:port
@@ -267,7 +269,7 @@ SIMILARITY_THRESHOLD=0.4
 MAX_SEARCH_RESULTS=200
 ```
 
-**Note:** With Supabase Auth, you do **not** need `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in the backend — those live in the Supabase dashboard. The backend only uses the stored Drive refresh token per photographer.
+**Note:** Google OAuth login is configured in the Supabase dashboard, but the backend still needs the same `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` so it can refresh stored Google Drive tokens when calling the Drive API.
 
 ---
 

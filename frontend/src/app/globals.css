@@ -3,25 +3,43 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #f7f1e8;
+  --foreground: #17201d;
+  --paper: #fffaf1;
+  --ink-soft: #5f6762;
+  --brand: #24483f;
+  --brand-strong: #132b26;
+  --accent: #d97742;
+  --accent-soft: #f7d8bd;
+  --line: #e5d8c3;
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(217, 119, 66, 0.16), transparent 30rem),
+    radial-gradient(circle at 85% 12%, rgba(36, 72, 63, 0.12), transparent 26rem),
+    linear-gradient(180deg, #fff8ec 0%, #f6efe4 48%, #eef4ef 100%);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  min-height: 100vh;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .glass-card {
+    background: rgba(255, 250, 241, 0.82);
+    border: 1px solid rgba(229, 216, 195, 0.9);
+    box-shadow: 0 24px 80px rgba(36, 72, 63, 0.12);
+    backdrop-filter: blur(18px);
+  }
+
+  .soft-grid {
+    background-image:
+      linear-gradient(rgba(36, 72, 63, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(36, 72, 63, 0.06) 1px, transparent 1px);
+    background-size: 38px 38px;
   }
 }

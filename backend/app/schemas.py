@@ -90,6 +90,7 @@ class EventSyncResponse(BaseModel):
     scanned: int
     created: int
     updated: int
+    queued: int
     photos_total: int
 
 
