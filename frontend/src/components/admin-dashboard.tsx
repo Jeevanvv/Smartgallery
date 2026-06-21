@@ -244,7 +244,7 @@ export default function AdminDashboard() {
       setSelectedFolderName("");
       setEventView("active");
       await refreshEventData(false, "active");
-      setNotice("Event created. Use Sync new photos when your Drive folder is ready.");
+      setNotice("Event created. Photos are syncing and indexing automatically.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create event");
     } finally {
@@ -652,7 +652,7 @@ export default function AdminDashboard() {
             </h3>
             <p className="mt-2 text-sm leading-6 text-[#5f6762]">
               {eventView === "active"
-                ? "Create your first event above, then sync photos from the Drive folder."
+                ? "Create your first event above. Photos will sync from the Drive folder automatically."
                 : "Archived events will appear here after you archive them."}
             </p>
           </div>

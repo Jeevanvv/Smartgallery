@@ -97,7 +97,7 @@ def list_events(
     return EventListResponse(stats=stats, events=event_responses)
 
 
-def create_event(db: Session, photographer: Photographer, data: EventCreate) -> EventResponse:
+def create_event_model(db: Session, photographer: Photographer, data: EventCreate) -> Event:
     slug = data.slug or slugify(data.name)
     if not slug:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event name")
@@ -113,6 +113,12 @@ def create_event(db: Session, photographer: Photographer, data: EventCreate) -> 
         drive_folder_id=data.drive_folder_id,
     )
     db.add(event)
+    db.flush()
+    return event
+
+
+def create_event(db: Session, photographer: Photographer, data: EventCreate) -> EventResponse:
+    event = create_event_model(db, photographer, data)
     db.commit()
     db.refresh(event)
     return _event_response(db, event)

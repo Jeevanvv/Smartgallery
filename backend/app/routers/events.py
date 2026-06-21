@@ -45,7 +45,10 @@ def create_event(
     photographer: Photographer = Depends(get_current_photographer),
     db: Session = Depends(get_db),
 ):
-    return event_service.create_event(db, photographer, body)
+    event = event_service.create_event_model(db, photographer, body)
+    drive_service.sync_event_photos(db, photographer, event)
+    indexing_service.queue_pending_event_photos(db, event)
+    return event_service.get_event(db, photographer, event.id)
 
 
 @router.get("/{event_id}", response_model=EventResponse)
