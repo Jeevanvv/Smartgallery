@@ -18,7 +18,14 @@ def get_public_event_by_slug(db: Session, slug: str) -> Event:
     return event
 
 
-def search_event_photos(db: Session, event: Event, selfie_bytes: bytes) -> PublicSearchResponse:
+def search_event_photos(
+    db: Session,
+    event: Event,
+    selfie_bytes: bytes,
+    guest_name: str,
+    guest_phone: str,
+    guest_email: str,
+) -> PublicSearchResponse:
     indexed_count = (
         db.query(Photo).filter(Photo.event_id == event.id, Photo.processing_status == "done").count()
     )
@@ -63,6 +70,9 @@ def search_event_photos(db: Session, event: Event, selfie_bytes: bytes) -> Publi
 
     search_session = SearchSession(
         event_id=event.id,
+        guest_name=guest_name,
+        guest_phone=guest_phone,
+        guest_email=guest_email,
         match_count=len(photos),
     )
     db.add(search_session)

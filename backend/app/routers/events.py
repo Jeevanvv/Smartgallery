@@ -100,6 +100,7 @@ def sync_event(
         scanned=result.scanned,
         created=result.created,
         updated=result.updated,
+        deleted=result.deleted,
         queued=queue_result.queued,
         photos_total=result.photos_total,
     )

@@ -6,11 +6,56 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Event, FaceEmbedding, Photo, Photographer, SearchSession
-from app.schemas import DashboardStatsResponse, EventCreate, EventListResponse, EventResponse, slugify
+from app.schemas import DashboardStatsResponse, EventCreate, EventListResponse, EventResponse, GuestSearchResponse, slugify
 
 
 def _public_url(slug: str) -> str:
     return f"{settings.frontend_url.rstrip('/')}/event/{slug}"
+
+
+def _event_id_prefix(event_id: uuid.UUID, length: int = 8) -> str:
+    return str(event_id).replace("-", "")[:length]
+
+
+def _slug_with_event_prefix(event_id: uuid.UUID, slug: str, prefix_length: int = 8) -> str:
+    prefix = _event_id_prefix(event_id, prefix_length)
+    suffix_limit = 100 - len(prefix) - 1
+    suffix = slug[:suffix_limit].strip("-")
+    return f"{prefix}-{suffix}" if suffix else prefix
+
+
+def _active_slug_exists(db: Session, slug: str, exclude_event_id: uuid.UUID | None = None) -> bool:
+    query = db.query(Event.id).filter(Event.slug == slug, Event.status == "active")
+    if exclude_event_id is not None:
+        query = query.filter(Event.id != exclude_event_id)
+    return query.first() is not None
+
+
+def _unique_active_slug(
+    db: Session,
+    preferred_slug: str,
+    event_id: uuid.UUID,
+    exclude_event_id: uuid.UUID | None = None,
+) -> str:
+    if not _active_slug_exists(db, preferred_slug, exclude_event_id):
+        return preferred_slug
+
+    for prefix_length in (8, 12, 16, 32):
+        candidate = _slug_with_event_prefix(event_id, preferred_slug, prefix_length)
+        if not _active_slug_exists(db, candidate, exclude_event_id):
+            return candidate
+
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Could not create a unique event URL. Please try again.",
+    )
+
+
+def _slug_without_own_prefix(event: Event) -> str:
+    prefix = f"{_event_id_prefix(event.id)}-"
+    if event.slug.startswith(prefix):
+        return event.slug[len(prefix):] or slugify(event.name)
+    return event.slug
 
 
 def _event_response(db: Session, event: Event) -> EventResponse:
@@ -47,6 +92,13 @@ def _event_response(db: Session, event: Event) -> EventResponse:
         .filter(SearchSession.event_id == event.id)
         .one()
     )
+    recent_searches = (
+        db.query(SearchSession)
+        .filter(SearchSession.event_id == event.id)
+        .order_by(SearchSession.searched_at.desc())
+        .limit(8)
+        .all()
+    )
     return EventResponse(
         id=event.id,
         name=event.name,
@@ -60,6 +112,7 @@ def _event_response(db: Session, event: Event) -> EventResponse:
         photos_failed=photos_failed,
         search_count=search_stats.search_count or 0,
         last_searched_at=search_stats.last_searched_at,
+        recent_searches=recent_searches,
         public_url=_public_url(event.slug),
         created_at=event.created_at,
     )
@@ -94,19 +147,41 @@ def list_events(
         matches_query = matches_query.filter(Event.status == status_filter)
     stats.matches_total = matches_query.scalar() or 0
 
-    return EventListResponse(stats=stats, events=event_responses)
+    guest_search_rows = (
+        db.query(SearchSession, Event.name.label("event_name"))
+        .join(Event, Event.id == SearchSession.event_id)
+        .filter(Event.photographer_id == photographer.id)
+    )
+    if status_filter != "all":
+        guest_search_rows = guest_search_rows.filter(Event.status == status_filter)
+    guest_search_rows = guest_search_rows.order_by(SearchSession.searched_at.desc()).all()
+    guest_searches = [
+        GuestSearchResponse(
+            id=session.id,
+            event_id=session.event_id,
+            event_name=event_name,
+            guest_name=session.guest_name,
+            guest_phone=session.guest_phone,
+            guest_email=session.guest_email,
+            match_count=session.match_count,
+            searched_at=session.searched_at,
+        )
+        for session, event_name in guest_search_rows
+    ]
+
+    return EventListResponse(stats=stats, events=event_responses, guest_searches=guest_searches)
 
 
 def create_event_model(db: Session, photographer: Photographer, data: EventCreate) -> Event:
-    slug = data.slug or slugify(data.name)
-    if not slug:
+    preferred_slug = data.slug or slugify(data.name)
+    if not preferred_slug:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event name")
 
-    existing_active = db.query(Event).filter(Event.slug == slug, Event.status == "active").first()
-    if existing_active:
-        slug = f"{slug}-{str(uuid.uuid4())[:8]}"
+    event_id = uuid.uuid4()
+    slug = _unique_active_slug(db, preferred_slug, event_id)
 
     event = Event(
+        id=event_id,
         photographer_id=photographer.id,
         name=data.name,
         slug=slug,
@@ -149,17 +224,8 @@ def archive_event(db: Session, photographer: Photographer, event_id: uuid.UUID) 
 
 def restore_event(db: Session, photographer: Photographer, event_id: uuid.UUID) -> EventResponse:
     event = get_event_model(db, photographer, event_id, include_archived=True)
-    existing_active = (
-        db.query(Event)
-        .filter(Event.slug == event.slug, Event.status == "active", Event.id != event.id)
-        .first()
-    )
-    if existing_active:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An active event already uses this public link. Archive it before restoring this event.",
-        )
-
+    preferred_slug = _slug_without_own_prefix(event) or slugify(event.name)
+    event.slug = _unique_active_slug(db, preferred_slug, event.id, exclude_event_id=event.id)
     event.status = "active"
     db.commit()
     db.refresh(event)

@@ -28,7 +28,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 | id | UUID PK | |
 | photographer_id | UUID FK → photographers | |
 | name | VARCHAR(255) | e.g. "Wedding - Sharma Family" |
-| slug | VARCHAR(100) UNIQUE | URL-safe, e.g. `sharma-wedding` |
+| slug | VARCHAR(100) | Active-event unique URL slug. Duplicates are allowed for archived events; collisions restore/create as `eventid-sharma-wedding`. |
 | drive_folder_id | VARCHAR(255) | Google Drive folder ID |
 | status | VARCHAR(50) | `active`, `archived` |
 | created_at | TIMESTAMPTZ | |
@@ -71,8 +71,11 @@ CREATE INDEX ON face_embeddings USING ivfflat (embedding vector_cosine_ops)
 |--------|------|-------|
 | id | UUID PK | |
 | event_id | UUID FK → events | |
+| guest_name | VARCHAR(255) | Guest-provided name for search follow-up |
+| guest_phone | VARCHAR(50) | Guest-provided phone number |
+| guest_email | VARCHAR(255) | Guest-provided email |
 | match_count | INTEGER | Number of photos returned |
-| searched_at | TIMESTAMPTZ | No selfie stored — privacy |
+| searched_at | TIMESTAMPTZ | Selfie is not stored |
 
 ## Entity relationships
 

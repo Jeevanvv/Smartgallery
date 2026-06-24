@@ -60,6 +60,8 @@ List photographer's events.
 }
 ```
 
+If another active event already uses the readable slug, create/restore keeps the URL unique by prefixing the restored or newly created event slug with that event ID prefix, for example `a1b2c3d4-sharma-wedding`.
+
 ### `GET /events/{event_id}`
 
 Event detail + processing stats.
@@ -81,13 +83,14 @@ Archive event.
 
 ### `POST /events/{event_id}/sync`
 
-Trigger manual Drive sync.
+Trigger manual Drive sync. Drive sync removes database photo and face embedding records for event photos that no longer exist in the selected Drive folder.
 
 ```json
 {
   "scanned": 120,
   "created": 120,
   "updated": 0,
+  "deleted": 0,
   "photos_total": 120
 }
 ```
@@ -139,6 +142,9 @@ Event landing info.
 
 | Field | Type | Required |
 |-------|------|----------|
+| guest_name | string | yes |
+| guest_phone | string | yes |
+| guest_email | string | yes |
 | selfie | file (image/jpeg, image/png) | yes |
 
 **Response:**

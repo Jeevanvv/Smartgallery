@@ -12,7 +12,7 @@
 
 - Create, list, view, archive events
 - Each event linked to one Google Drive folder
-- Unique public slug per event (shareable URL)
+- Unique active public URL per event; same-name conflicts use an event-ID-prefixed slug
 
 ### FR-3 Photo sync
 
@@ -32,7 +32,7 @@
 ### FR-5 Client face search
 
 - Public event page — no login required
-- Selfie via webcam or file upload
+- Guest enters name, phone, and email before selfie search`r`n- Selfie via webcam or file upload
 - Validate face present before search
 - Return matched photos for that event only
 - Selfie discarded after search — never stored
@@ -46,7 +46,7 @@
 ### FR-7 Privacy
 
 - Display consent message before selfie capture
-- No client PII stored beyond anonymous search session log
+- Guest contact details are stored with the search session for event follow-up
 - Privacy policy page
 
 ## Non-functional requirements

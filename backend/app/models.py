@@ -80,6 +80,9 @@ class SearchSession(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("events.id"), index=True)
+    guest_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    guest_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    guest_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     match_count: Mapped[int] = mapped_column(Integer, default=0)
     searched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

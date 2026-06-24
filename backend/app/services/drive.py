@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.crypto import decrypt_token_data, encrypt_token_data
-from app.models import Event, Photo, Photographer
+from app.models import Event, FaceEmbedding, Photo, Photographer
 from app.schemas import DriveFolderListResponse, DriveFolderResponse, normalize_drive_folder_id
 
 IMAGE_MIME_PREFIX = "image/"
@@ -25,6 +25,7 @@ class DriveSyncResult:
     scanned: int
     created: int
     updated: int
+    deleted: int
     photos_total: int
 
 
@@ -182,6 +183,11 @@ def download_photo_bytes(db: Session, photographer: Photographer, photo: Photo) 
         ) from exc
 
 
+def delete_photo_record(db: Session, photo: Photo) -> None:
+    db.query(FaceEmbedding).filter(FaceEmbedding.photo_id == photo.id).delete(synchronize_session=False)
+    db.delete(photo)
+    db.commit()
+
 def guess_photo_content_type(photo: Photo) -> str:
     content_type, _encoding = mimetypes.guess_type(photo.filename)
     return content_type or "image/jpeg"
@@ -284,6 +290,8 @@ def sync_event_photos(db: Session, photographer: Photographer, event: Event) -> 
     created = 0
     updated = 0
     scanned = 0
+    deleted = 0
+    synced_drive_file_ids: set[str] = set()
     page_token: str | None = None
 
     while True:
@@ -350,6 +358,7 @@ def sync_event_photos(db: Session, photographer: Photographer, event: Event) -> 
 
         for item in response.get("files", []):
             scanned += 1
+            synced_drive_file_ids.add(item["id"])
             photo = db.query(Photo).filter(Photo.drive_file_id == item["id"]).first()
 
             thumbnail_url = _thumbnail_url(item["id"], item.get("thumbnailLink"))
@@ -384,6 +393,15 @@ def sync_event_photos(db: Session, photographer: Photographer, event: Event) -> 
         if not page_token:
             break
 
+    stale_photo_query = db.query(Photo).filter(Photo.event_id == event.id)
+    if synced_drive_file_ids:
+        stale_photo_query = stale_photo_query.filter(Photo.drive_file_id.notin_(synced_drive_file_ids))
+    stale_photo_ids = [photo_id for (photo_id,) in stale_photo_query.with_entities(Photo.id).all()]
+    if stale_photo_ids:
+        deleted = len(stale_photo_ids)
+        db.query(FaceEmbedding).filter(FaceEmbedding.photo_id.in_(stale_photo_ids)).delete(synchronize_session=False)
+        db.query(Photo).filter(Photo.id.in_(stale_photo_ids)).delete(synchronize_session=False)
+
     db.commit()
 
     photos_total = db.query(Photo).filter(Photo.event_id == event.id).count()
@@ -391,5 +409,6 @@ def sync_event_photos(db: Session, photographer: Photographer, event: Event) -> 
         scanned=scanned,
         created=created,
         updated=updated,
+        deleted=deleted,
         photos_total=photos_total,
     )

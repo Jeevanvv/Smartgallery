@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
 import {
   createEvent,
   listDriveFolders,
@@ -14,6 +15,7 @@ import {
   syncEvent,
   syncProfile,
   type Event,
+  type GuestSearch,
   type Photographer,
 } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
@@ -39,11 +41,121 @@ function eventStatus(event: Event) {
   return { label: "Setup", className: "bg-stone-200 text-stone-700" };
 }
 
+function shortEventId(eventId: string) {
+  return eventId.split("-")[0]?.toUpperCase() ?? eventId.slice(0, 8).toUpperCase();
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function wrapCanvasText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines = 2
+) {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let line = "";
+
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (context.measureText(testLine).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = testLine;
+    }
+  });
+  if (line) lines.push(line);
+
+  lines.slice(0, maxLines).forEach((lineText, index) => {
+    const isLastVisibleLine = index === maxLines - 1 && lines.length > maxLines;
+    const displayText = isLastVisibleLine ? `${lineText.replace(/\s+\S*$/, "")}...` : lineText;
+    context.fillText(displayText, x, y + index * lineHeight);
+  });
+}
+
+async function makeEventShareImage(event: Event, qrDataUrl: string): Promise<Blob> {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1350;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Image export is not available in this browser.");
+  }
+
+  context.fillStyle = "#fffaf1";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#24483f";
+  context.fillRect(0, 0, canvas.width, 260);
+  context.fillStyle = "#d97742";
+  context.fillRect(0, 250, canvas.width, 12);
+
+  context.fillStyle = "#f7d8bd";
+  context.font = "700 30px Arial, sans-serif";
+  context.fillText("SMART GALLERY EVENT ACCESS", 72, 92);
+
+  context.fillStyle = "#ffffff";
+  context.font = "900 62px Arial, sans-serif";
+  wrapCanvasText(context, event.name, 72, 178, 936, 72, 2);
+
+  context.fillStyle = "#17201d";
+  context.font = "900 42px Arial, sans-serif";
+  context.fillText("Scan to open event gallery", 72, 350);
+
+  context.fillStyle = "#5f6762";
+  context.font = "500 30px Arial, sans-serif";
+  context.fillText("Guests can open the event page and find photos by selfie.", 72, 398);
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(240, 470, 600, 600);
+  context.strokeStyle = "#e5d8c3";
+  context.lineWidth = 8;
+  context.strokeRect(240, 470, 600, 600);
+
+  const qrImage = await loadImage(qrDataUrl);
+  context.drawImage(qrImage, 288, 518, 504, 504);
+
+  context.fillStyle = "#f7f1e8";
+  context.fillRect(72, 1138, 936, 124);
+  context.strokeStyle = "#e5d8c3";
+  context.lineWidth = 2;
+  context.strokeRect(72, 1138, 936, 124);
+
+  context.fillStyle = "#17201d";
+  context.font = "900 30px Arial, sans-serif";
+  context.fillText(`Event ID: ${shortEventId(event.id)}`, 112, 1194);
+
+  context.fillStyle = "#5f6762";
+  context.font = "500 25px Arial, sans-serif";
+  wrapCanvasText(context, event.public_url, 112, 1238, 856, 32, 2);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("Could not create event QR image."));
+      }
+    }, "image/png");
+  });
+}
 export default function AdminDashboard() {
   const supabase = useMemo(() => createClient(), []);
   const [photographer, setPhotographer] = useState<Photographer | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
+  const [guestSearches, setGuestSearches] = useState<GuestSearch[]>([]);
   const [eventView, setEventView] = useState<"active" | "archived">("active");
   const eventViewRef = useRef<"active" | "archived">("active");
   const [loading, setLoading] = useState(true);
@@ -55,6 +167,10 @@ export default function AdminDashboard() {
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [drivePickerLoading, setDrivePickerLoading] = useState(false);
   const [drivePickerState, setDrivePickerState] = useState<DriveFolderListResponse | null>(null);
+  const [shareEvent, setShareEvent] = useState<Event | null>(null);
+  const [shareQrDataUrl, setShareQrDataUrl] = useState("");
+  const [shareBusyAction, setShareBusyAction] = useState<"share" | "copy" | "download" | null>(null);
+  const [guestSearchesOpen, setGuestSearchesOpen] = useState(false);
 
   const [eventName, setEventName] = useState("");
   const [driveFolderId, setDriveFolderId] = useState("");
@@ -87,6 +203,7 @@ export default function AdminDashboard() {
         const eventData = await listEvents(session.access_token, statusOverride ?? eventViewRef.current);
         setStats(eventData.stats);
         setEvents(eventData.events);
+        setGuestSearches(eventData.guest_searches);
       } catch (err) {
         if (!silent) {
           setError(err instanceof Error ? err.message : "Failed to refresh dashboard");
@@ -110,6 +227,7 @@ export default function AdminDashboard() {
       setPhotographer(null);
       setStats(null);
       setEvents([]);
+      setGuestSearches([]);
       setLoading(false);
       return;
     }
@@ -197,6 +315,56 @@ export default function AdminDashboard() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [drivePickerOpen]);
+
+  useEffect(() => {
+    if (!shareEvent) {
+      setShareQrDataUrl("");
+      return;
+    }
+
+    let cancelled = false;
+    QRCode.toDataURL(shareEvent.public_url, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      scale: 10,
+      color: {
+        dark: "#17201d",
+        light: "#ffffff",
+      },
+    })
+      .then((dataUrl) => {
+        if (!cancelled) {
+          setShareQrDataUrl(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError("Could not generate QR code for this event.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shareEvent]);
+
+  useEffect(() => {
+    if (!shareEvent) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShareEvent(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [shareEvent]);
 
   async function handleSignIn() {
     setError(null);
@@ -315,7 +483,7 @@ export default function AdminDashboard() {
       const result = await syncEvent(session.access_token, eventId);
       await refreshEventData();
       setNotice(
-        `Drive sync finished: scanned ${result.scanned}, added ${result.created}, updated ${result.updated}, queued ${result.queued} for indexing.`
+        `Drive sync finished: scanned ${result.scanned}, added ${result.created}, updated ${result.updated}, removed ${result.deleted}, queued ${result.queued} for indexing.`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sync event photos");
@@ -372,7 +540,83 @@ export default function AdminDashboard() {
 
   async function copyEventLink(url: string) {
     await navigator.clipboard.writeText(url);
-    setNotice("Event link copied. Share it with guests when indexing is complete.");
+    setNotice("Event link copied.");
+  }
+
+  async function downloadEventQr(event: Event) {
+    if (!shareQrDataUrl) return;
+
+    setShareBusyAction("download");
+    setError(null);
+    try {
+      const blob = await makeEventShareImage(event, shareQrDataUrl);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${event.slug}-qr.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setNotice("Event QR image downloaded.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download QR image");
+    } finally {
+      setShareBusyAction(null);
+    }
+  }
+
+  async function copyEventQrImage(event: Event) {
+    if (!shareQrDataUrl) return;
+
+    setShareBusyAction("copy");
+    setError(null);
+    try {
+      const blob = await makeEventShareImage(event, shareQrDataUrl);
+      const clipboard = navigator.clipboard as Clipboard & {
+        write?: (items: ClipboardItem[]) => Promise<void>;
+      };
+      if (!clipboard.write || typeof ClipboardItem === "undefined") {
+        await copyEventLink(event.public_url);
+        setNotice("Image clipboard is not supported here, so the event link was copied.");
+        return;
+      }
+      await clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      setNotice("Event QR image copied.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to copy QR image");
+    } finally {
+      setShareBusyAction(null);
+    }
+  }
+
+  async function shareEventQr(event: Event) {
+    if (!shareQrDataUrl) return;
+
+    setShareBusyAction("share");
+    setError(null);
+    try {
+      const blob = await makeEventShareImage(event, shareQrDataUrl);
+      const file = new File([blob], `${event.slug}-qr.png`, { type: "image/png" });
+      const shareData = {
+        title: event.name,
+        text: `Scan this QR code to open ${event.name}.`,
+        url: event.public_url,
+        files: [file],
+      };
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share(shareData);
+        setNotice("Event QR image shared.");
+        return;
+      }
+
+      await copyEventLink(event.public_url);
+      setNotice("Native image sharing is not available here, so the event link was copied.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Failed to share QR image");
+    } finally {
+      setShareBusyAction(null);
+    }
   }
 
   if (loading) {
@@ -490,6 +734,26 @@ export default function AdminDashboard() {
             </div>
           ))}
           <div className="glass-card rounded-[1.5rem] p-5 sm:col-span-2 xl:col-span-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d97742]">
+                  Guest searches
+                </p>
+                <p className="mt-2 text-sm font-medium text-[#5f6762]">
+                  {guestSearches.length} guest search records in the current {eventView} view.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGuestSearchesOpen(true)}
+                className="w-full rounded-full bg-[#24483f] px-5 py-3 text-sm font-black text-white transition hover:bg-[#132b26] disabled:cursor-not-allowed disabled:bg-[#c8c1b6] sm:w-auto"
+                disabled={guestSearches.length === 0}
+              >
+                View all guests
+              </button>
+            </div>
+          </div>
+          <div className="glass-card rounded-[1.5rem] p-5 sm:col-span-2 xl:col-span-4">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d97742]">
@@ -597,7 +861,7 @@ export default function AdminDashboard() {
               "Drive folder selected",
               "Photos synced from Google Drive",
               "Indexing complete or mostly complete",
-              "Public link copied and shared",
+              "Event QR code shared with guests",
             ].map((item, index) => (
               <div key={item} className="flex gap-3 rounded-2xl bg-white/65 p-4">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#24483f] text-sm font-black text-white">
@@ -729,14 +993,14 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    <div className="flex flex-col gap-2 lg:min-w-48">
+                    <div className="flex flex-col gap-2 lg:min-w-52">
                       {event.status === "active" ? (
                         <>
                           <button
-                            onClick={() => copyEventLink(event.public_url)}
-                            className="rounded-full border border-[#d7c8af] bg-white/70 px-5 py-3 text-sm font-black text-[#24483f] transition hover:border-[#24483f]"
+                            onClick={() => setShareEvent(event)}
+                            className="rounded-full bg-[#24483f] px-5 py-3 text-sm font-black text-white transition hover:bg-[#132b26]"
                           >
-                            Copy link
+                            Share event
                           </button>
                           <button
                             onClick={() => handleSyncEvent(event.id)}
@@ -872,6 +1136,193 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {guestSearchesOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#17201d]/55 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="guest-searches-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setGuestSearchesOpen(false);
+            }
+          }}
+        >
+          <div className="glass-card flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem]">
+            <div className="border-b border-[#e5d8c3] p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-[#d97742]">
+                    Guest searches
+                  </p>
+                  <h2 id="guest-searches-title" className="mt-2 text-2xl font-black text-[#17201d]">
+                    All guests who searched
+                  </h2>
+                  <p className="mt-1 text-sm font-medium text-[#5f6762]">
+                    Showing {guestSearches.length} records for {eventView} events.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGuestSearchesOpen(false)}
+                  className="rounded-full border border-[#d7c8af] bg-white/70 px-4 py-2 text-xs font-black text-[#24483f] hover:border-[#24483f]"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="overflow-y-auto p-5 sm:p-6">
+              {guestSearches.length === 0 ? (
+                <div className="rounded-2xl bg-white/70 p-6 text-center">
+                  <p className="text-sm font-black text-[#17201d]">No guest searches yet.</p>
+                  <p className="mt-2 text-sm font-medium text-[#5f6762]">
+                    Guest details will appear here after visitors search an event gallery.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-[#e5d8c3] bg-white/75">
+                  <div className="hidden grid-cols-[1.1fr_1fr_1fr_0.7fr_1fr] gap-3 border-b border-[#e5d8c3] bg-[#f7f1e8] px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#6f756f] lg:grid">
+                    <span>Guest</span>
+                    <span>Contact</span>
+                    <span>Event</span>
+                    <span>Matches</span>
+                    <span>When</span>
+                  </div>
+                  <div className="divide-y divide-[#e5d8c3]">
+                    {guestSearches.map((search) => (
+                      <div key={search.id} className="grid gap-3 px-4 py-4 text-sm lg:grid-cols-[1.1fr_1fr_1fr_0.7fr_1fr] lg:items-center">
+                        <div>
+                          <p className="font-black text-[#17201d]">{search.guest_name || "Guest"}</p>
+                          <p className="mt-1 text-xs font-medium text-[#6f756f]">ID {search.id.slice(0, 8).toUpperCase()}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="break-all font-medium text-[#5f6762]">{search.guest_email || "No email"}</p>
+                          <p className="mt-1 break-all font-medium text-[#5f6762]">{search.guest_phone || "No phone"}</p>
+                        </div>
+                        <p className="break-words font-black text-[#24483f]">{search.event_name}</p>
+                        <span className="w-fit rounded-full bg-[#24483f]/10 px-3 py-1 text-xs font-black text-[#24483f]">
+                          {search.match_count} photos
+                        </span>
+                        <p className="font-medium text-[#5f6762]">{new Date(search.searched_at).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {shareEvent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#17201d]/55 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="share-event-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setShareEvent(null);
+            }
+          }}
+        >
+          <div className="glass-card grid max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] lg:grid-cols-[0.92fr_1.08fr]">
+            <div className="bg-[#24483f] p-6 text-white sm:p-8">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f7d8bd]">
+                Event QR
+              </p>
+              <h2 id="share-event-title" className="mt-3 break-words text-3xl font-black">
+                {shareEvent.name}
+              </h2>
+              <p className="mt-3 text-sm font-medium leading-6 text-white/80">
+                This QR code opens the public event page directly. Share it on WhatsApp,
+                print it at the venue, or place it in a client message.
+              </p>
+
+              <div className="mt-6 space-y-3 rounded-2xl bg-white/10 p-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f7d8bd]">
+                    Event ID
+                  </p>
+                  <p className="mt-1 break-all text-sm font-bold text-white">{shareEvent.id}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f7d8bd]">
+                    Public URL
+                  </p>
+                  <p className="mt-1 break-all text-sm font-bold text-white">{shareEvent.public_url}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-8">
+              <div className="mx-auto max-w-md rounded-[1.5rem] border border-[#e5d8c3] bg-white p-5 text-center shadow-xl shadow-[#24483f]/10">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d97742]">
+                  Scan to open gallery
+                </p>
+                <h3 className="mt-3 break-words text-2xl font-black text-[#17201d]">
+                  {shareEvent.name}
+                </h3>
+                <div className="mx-auto mt-5 flex aspect-square w-full max-w-[280px] items-center justify-center rounded-2xl border border-[#e5d8c3] bg-white p-4">
+                  {shareQrDataUrl ? (
+                    <img src={shareQrDataUrl} alt={`${shareEvent.name} QR code`} className="h-full w-full" />
+                  ) : (
+                    <p className="text-sm font-bold text-[#5f6762]">Generating QR...</p>
+                  )}
+                </div>
+                <p className="mt-4 text-xs font-black uppercase tracking-[0.14em] text-[#6f756f]">
+                  Event ID {shortEventId(shareEvent.id)}
+                </p>
+                <p className="mt-2 break-all text-xs font-medium leading-5 text-[#5f6762]">
+                  {shareEvent.public_url}
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={!shareQrDataUrl || shareBusyAction !== null}
+                  onClick={() => shareEventQr(shareEvent)}
+                  className="rounded-full bg-[#24483f] px-5 py-3 text-sm font-black text-white transition hover:bg-[#132b26] disabled:opacity-50"
+                >
+                  {shareBusyAction === "share" ? "Preparing..." : "Share QR image"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!shareQrDataUrl || shareBusyAction !== null}
+                  onClick={() => downloadEventQr(shareEvent)}
+                  className="rounded-full bg-[#d97742] px-5 py-3 text-sm font-black text-white transition hover:bg-[#b85f30] disabled:opacity-50"
+                >
+                  {shareBusyAction === "download" ? "Preparing..." : "Download PNG"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!shareQrDataUrl || shareBusyAction !== null}
+                  onClick={() => copyEventQrImage(shareEvent)}
+                  className="rounded-full border border-[#d7c8af] bg-white/70 px-5 py-3 text-sm font-black text-[#24483f] transition hover:border-[#24483f] disabled:opacity-50"
+                >
+                  {shareBusyAction === "copy" ? "Copying..." : "Copy QR image"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyEventLink(shareEvent.public_url)}
+                  className="rounded-full border border-[#d7c8af] bg-white/70 px-5 py-3 text-sm font-black text-[#24483f] transition hover:border-[#24483f]"
+                >
+                  Copy URL
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShareEvent(null)}
+                className="mt-4 w-full rounded-full px-5 py-3 text-sm font-black text-[#5f6762] transition hover:bg-white/70"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

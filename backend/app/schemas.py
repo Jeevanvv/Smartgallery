@@ -53,6 +53,17 @@ class EventCreate(BaseModel):
         return normalize_drive_folder_id(value)
 
 
+
+class EventSearchSessionResponse(BaseModel):
+    id: uuid.UUID
+    guest_name: str | None = None
+    guest_phone: str | None = None
+    guest_email: str | None = None
+    match_count: int = 0
+    searched_at: datetime
+
+    model_config = {"from_attributes": True}
+
 class EventResponse(BaseModel):
     id: uuid.UUID
     name: str
@@ -66,6 +77,7 @@ class EventResponse(BaseModel):
     photos_failed: int = 0
     search_count: int = 0
     last_searched_at: datetime | None = None
+    recent_searches: list[EventSearchSessionResponse] = Field(default_factory=list)
     public_url: str
     created_at: datetime
 
@@ -81,15 +93,28 @@ class DashboardStatsResponse(BaseModel):
     matches_total: int = 0
 
 
+
+class GuestSearchResponse(BaseModel):
+    id: uuid.UUID
+    event_id: uuid.UUID
+    event_name: str
+    guest_name: str | None = None
+    guest_phone: str | None = None
+    guest_email: str | None = None
+    match_count: int = 0
+    searched_at: datetime
+
 class EventListResponse(BaseModel):
     stats: DashboardStatsResponse
     events: list[EventResponse]
+    guest_searches: list[GuestSearchResponse] = Field(default_factory=list)
 
 
 class EventSyncResponse(BaseModel):
     scanned: int
     created: int
     updated: int
+    deleted: int
     queued: int
     photos_total: int
 

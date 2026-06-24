@@ -8,6 +8,14 @@ export type Photographer = {
   created_at: string;
 };
 
+export type EventSearchSession = {
+  id: string;
+  guest_name: string | null;
+  guest_phone: string | null;
+  guest_email: string | null;
+  match_count: number;
+  searched_at: string;
+};
 export type Event = {
   id: string;
   name: string;
@@ -21,6 +29,7 @@ export type Event = {
   photos_failed: number;
   search_count: number;
   last_searched_at: string | null;
+  recent_searches: EventSearchSession[];
   public_url: string;
   created_at: string;
 };
@@ -34,15 +43,27 @@ export type DashboardStats = {
   matches_total: number;
 };
 
+export type GuestSearch = {
+  id: string;
+  event_id: string;
+  event_name: string;
+  guest_name: string | null;
+  guest_phone: string | null;
+  guest_email: string | null;
+  match_count: number;
+  searched_at: string;
+};
 export type EventListResponse = {
   stats: DashboardStats;
   events: Event[];
+  guest_searches: GuestSearch[];
 };
 
 export type EventSyncResult = {
   scanned: number;
   created: number;
   updated: number;
+  deleted: number;
   queued: number;
   photos_total: number;
 };

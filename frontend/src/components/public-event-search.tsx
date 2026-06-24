@@ -26,6 +26,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
 export default function PublicEventSearch({ slug, ready }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [selfiePreviewUrl, setSelfiePreviewUrl] = useState<string | null>(null);
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
   const [consentChecked, setConsentChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -36,6 +39,10 @@ export default function PublicEventSearch({ slug, ready }: Props) {
   const [result, setResult] = useState<SearchResult | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const guestDetailsReady =
+    guestName.trim().length > 0 &&
+    guestPhone.trim().length > 0 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim());
 
   useEffect(() => {
     return () => {
@@ -89,6 +96,11 @@ export default function PublicEventSearch({ slug, ready }: Props) {
   }
 
   async function startCamera() {
+    if (!guestDetailsReady) {
+      setError("Enter your name, phone number, and email before taking a selfie.");
+      return;
+    }
+
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("Camera capture is not available in this browser. Choose a selfie file instead.");
       return;
@@ -183,6 +195,10 @@ export default function PublicEventSearch({ slug, ready }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!guestDetailsReady) {
+      setError("Enter your name, phone number, and email before searching.");
+      return;
+    }
     if (!file) {
       setError("Choose a selfie first.");
       return;
@@ -202,6 +218,9 @@ export default function PublicEventSearch({ slug, ready }: Props) {
     }
 
     const formData = new FormData();
+    formData.append("guest_name", guestName.trim());
+    formData.append("guest_phone", guestPhone.trim());
+    formData.append("guest_email", guestEmail.trim().toLowerCase());
     formData.append("selfie", file);
 
     try {
@@ -276,10 +295,57 @@ export default function PublicEventSearch({ slug, ready }: Props) {
           </p>
         </div>
 
+        <div className="mt-5 rounded-[1.5rem] border border-[#e5d8c3] bg-white/75 p-4">
+          <p className="text-sm font-black text-[#17201d]">Your details</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#6f756f]">
+                Full name
+              </label>
+              <input
+                type="text"
+                required
+                value={guestName}
+                disabled={!eventActive || !ready || loading}
+                onChange={(e) => setGuestName(e.target.value)}
+                placeholder="Your name"
+                className="w-full rounded-2xl border border-[#d7c8af] bg-white px-4 py-3 text-sm font-medium text-[#17201d] outline-none transition placeholder:text-[#a8a094] focus:border-[#24483f] focus:ring-4 focus:ring-[#24483f]/10 disabled:bg-[#f3eee6]"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#6f756f]">
+                Phone
+              </label>
+              <input
+                type="tel"
+                required
+                value={guestPhone}
+                disabled={!eventActive || !ready || loading}
+                onChange={(e) => setGuestPhone(e.target.value)}
+                placeholder="Mobile number"
+                className="w-full rounded-2xl border border-[#d7c8af] bg-white px-4 py-3 text-sm font-medium text-[#17201d] outline-none transition placeholder:text-[#a8a094] focus:border-[#24483f] focus:ring-4 focus:ring-[#24483f]/10 disabled:bg-[#f3eee6]"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#6f756f]">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={guestEmail}
+                disabled={!eventActive || !ready || loading}
+                onChange={(e) => setGuestEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-2xl border border-[#d7c8af] bg-white px-4 py-3 text-sm font-medium text-[#17201d] outline-none transition placeholder:text-[#a8a094] focus:border-[#24483f] focus:ring-4 focus:ring-[#24483f]/10 disabled:bg-[#f3eee6]"
+              />
+            </div>
+          </div>
+        </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-[auto_1fr]">
           <button
             type="button"
-            disabled={!eventActive || !ready || loading || cameraStarting}
+            disabled={!eventActive || !ready || loading || cameraStarting || !guestDetailsReady}
             onClick={cameraOpen ? stopCamera : startCamera}
             className="rounded-full bg-[#24483f] px-6 py-4 text-sm font-black text-white shadow-xl shadow-[#24483f]/15 transition hover:bg-[#132b26] disabled:cursor-not-allowed disabled:bg-[#c8c1b6]"
           >
@@ -292,7 +358,7 @@ export default function PublicEventSearch({ slug, ready }: Props) {
               type="file"
               accept="image/png,image/jpeg,image/jpg,image/webp"
               capture="user"
-              disabled={!eventActive || !ready || loading}
+              disabled={!eventActive || !ready || loading || !guestDetailsReady}
               onChange={(e) => {
                 setSelfieFile(e.target.files?.[0] ?? null);
               }}
@@ -358,7 +424,7 @@ export default function PublicEventSearch({ slug, ready }: Props) {
           <input
             type="checkbox"
             checked={consentChecked}
-            disabled={!eventActive || !ready || loading}
+            disabled={!eventActive || !ready || loading || !guestDetailsReady}
             onChange={(e) => setConsentChecked(e.target.checked)}
             className="mt-1 h-4 w-4 rounded border-[#d7c8af] text-[#24483f] focus:ring-[#24483f]"
           />
@@ -370,7 +436,7 @@ export default function PublicEventSearch({ slug, ready }: Props) {
 
         <button
           type="submit"
-          disabled={!eventActive || !ready || loading || !consentChecked || !file}
+          disabled={!eventActive || !ready || loading || !guestDetailsReady || !consentChecked || !file}
           className="mt-5 w-full rounded-full bg-[#24483f] px-6 py-4 text-sm font-black text-white shadow-xl shadow-[#24483f]/15 transition hover:bg-[#132b26] disabled:cursor-not-allowed disabled:bg-[#c8c1b6] sm:w-auto"
         >
           {loading ? "Searching your gallery..." : "Search my photos"}
