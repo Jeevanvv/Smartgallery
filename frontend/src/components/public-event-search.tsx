@@ -22,6 +22,8 @@ type Props = {
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const WATERMARK_LOGO_URL =
+  "/WhatsApp_Image_2026-06-26_at_7.45.53_PM-removebg-preview.png";
 
 export default function PublicEventSearch({ slug, ready }: Props) {
   const [file, setFile] = useState<File | null>(null);
@@ -485,11 +487,17 @@ export default function PublicEventSearch({ slug, ready }: Props) {
                   key={photo.id}
                   className="group overflow-hidden rounded-[1.75rem] border border-[#e5d8c3] bg-[#fffaf1]/85 shadow-xl shadow-[#24483f]/10"
                 >
-                  <div className="overflow-hidden bg-[#17201d]">
+                  <div className="relative overflow-hidden bg-[#17201d]">
                     <img
                       src={`${API_URL}/public/events/${slug}/photos/${photo.id}/thumbnail`}
                       alt={photo.filename}
                       className="h-64 w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                    <img
+                      src={WATERMARK_LOGO_URL}
+                      alt=""
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-4 top-4 h-12 max-w-[42%] object-contain opacity-85 drop-shadow-md"
                     />
                   </div>
                   <div className="p-5">
