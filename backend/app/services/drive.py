@@ -266,6 +266,11 @@ def list_drive_folders(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to browse Google Drive folders.",
         ) from exc
+    except RefreshError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google Drive access expired or was revoked. Sign in again to reconnect Drive.",
+        ) from exc
 
     folders = sorted(response.get("files", []), key=lambda item: item.get("name", "").lower())
     return DriveFolderListResponse(
