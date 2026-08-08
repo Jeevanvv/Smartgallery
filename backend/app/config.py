@@ -1,14 +1,23 @@
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from urllib.parse import urlparse
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=(".env", ".env.local"),
+        env_file_encoding="utf-8",
+    )
 
     app_name: str = "SmartGallery"
     app_version: str = "0.1.0"
+    app_environment: str = "production"
     debug: bool = False
-    secret_key: str = "change-me"
+    expose_api_docs: bool = False
+    secret_key: str = ""
+    local_dev_auth: bool = False
+    local_dev_auth_token: str = ""
+    local_dev_user_email: str = "developer@localhost"
 
     database_url: str = ""
     redis_url: str = ""
@@ -18,6 +27,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_jwt_secret: str = ""
     supabase_service_role_key: str = ""
+    supabase_jwt_audience: str = "authenticated"
     google_client_id: str = ""
     google_client_secret: str = ""
 
@@ -27,6 +37,13 @@ class Settings(BaseSettings):
     face_detection_size: int = 640
     face_detection_fallback_size: int = 1024
     auto_sync_interval_minutes: int = 30
+
+    max_selfie_bytes: int = 8 * 1024 * 1024
+    max_image_pixels: int = 25_000_000
+    public_searches_per_minute: int = 10
+    trusted_proxy_hops: int = 0
+    photo_access_token_minutes: int = 15
+    search_session_retention_days: int = 30
 
     frontend_url: str = "http://localhost:3000"
 
@@ -42,6 +59,34 @@ class Settings(BaseSettings):
             if normalized in {"0", "false", "no", "off", "release", "production", "prod"}:
                 return False
         return bool(value)
+
+    @model_validator(mode="after")
+    def validate_security_settings(self):
+        normalized_secret = self.secret_key.lower()
+        placeholder_markers = ("change-me", "replace-with", "your-secret", "example")
+        if len(self.secret_key) < 32 or any(
+            marker in normalized_secret for marker in placeholder_markers
+        ):
+            raise ValueError("SECRET_KEY must be a random value of at least 32 characters")
+        if not self.supabase_jwt_audience.strip():
+            raise ValueError("SUPABASE_JWT_AUDIENCE must not be empty")
+        if self.max_selfie_bytes < 1024:
+            raise ValueError("MAX_SELFIE_BYTES must be at least 1024")
+        if self.public_searches_per_minute < 1:
+            raise ValueError("PUBLIC_SEARCHES_PER_MINUTE must be at least 1")
+        if self.search_session_retention_days < 1:
+            raise ValueError("SEARCH_SESSION_RETENTION_DAYS must be at least 1")
+        if self.local_dev_auth:
+            if self.app_environment.lower() != "development":
+                raise ValueError("LOCAL_DEV_AUTH is only allowed in development")
+            if len(self.local_dev_auth_token) < 32:
+                raise ValueError("LOCAL_DEV_AUTH_TOKEN must be at least 32 characters")
+            local_hosts = {"127.0.0.1", "localhost", "::1"}
+            if urlparse(self.database_url).hostname not in local_hosts:
+                raise ValueError("LOCAL_DEV_AUTH requires a loopback database")
+            if urlparse(self.frontend_url).hostname not in local_hosts:
+                raise ValueError("LOCAL_DEV_AUTH requires a loopback frontend URL")
+        return self
 
 
 settings = Settings()

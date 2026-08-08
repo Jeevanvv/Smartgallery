@@ -145,7 +145,8 @@ Event landing info.
 | guest_name | string | yes |
 | guest_phone | string | yes |
 | guest_email | string | yes |
-| selfie | file (image/jpeg, image/png) | yes |
+| privacy_consent | boolean (`true`) | yes |
+| selfie | JPEG, PNG, or WebP file (8 MB default maximum) | yes |
 
 **Response:**
 
@@ -156,9 +157,7 @@ Event landing info.
   "photos": [
     {
       "id": "uuid",
-      "thumbnail_url": "https://drive.google.com/thumbnail?...",
-      "drive_url": "https://drive.google.com/file/d/...",
-      "filename": "IMG_0042.jpg"
+      "access_token": "short-lived-resource-bound-token"
     }
   ]
 }
@@ -169,12 +168,17 @@ Event landing info.
 | Code | Meaning |
 |------|---------|
 | 400 | No face detected in selfie |
+| 413 | Request or selfie is too large |
+| 415 | Unsupported image type |
+| 429 | Search rate limit exceeded |
 | 404 | Event not found |
 | 503 | Event not ready (indexing in progress) |
 
 ### `GET /public/events/{slug}/photos/{photo_id}/download`
 
-Redirects to the stored Google Drive photo URL for that event photo.
+Requires the result's `token` query parameter and proxies the original image as a private,
+non-cacheable attachment. The same token is required by the `/thumbnail` endpoint and expires
+after the configured access period.
 
 ---
 

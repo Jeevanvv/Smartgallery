@@ -146,9 +146,7 @@ class PublicEventResponse(BaseModel):
 
 class PublicPhotoResponse(BaseModel):
     id: uuid.UUID
-    thumbnail_url: str | None = None
-    drive_url: str | None = None
-    filename: str
+    access_token: str
 
     model_config = {"from_attributes": True}
 

@@ -247,3 +247,16 @@ def permanently_delete_event(db: Session, photographer: Photographer, event_id: 
     db.query(Photo).filter(Photo.event_id == event.id).delete(synchronize_session=False)
     db.delete(event)
     db.commit()
+
+
+def delete_guest_search(db: Session, photographer: Photographer, session_id: uuid.UUID) -> None:
+    session = (
+        db.query(SearchSession)
+        .join(Event, Event.id == SearchSession.event_id)
+        .filter(SearchSession.id == session_id, Event.photographer_id == photographer.id)
+        .first()
+    )
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guest search not found")
+    db.delete(session)
+    db.commit()

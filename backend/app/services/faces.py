@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from io import BytesIO
 
 import cv2
 import numpy as np
 from insightface.app import FaceAnalysis
+from PIL import Image, UnidentifiedImageError
 
 from app.config import settings
 
@@ -21,6 +23,18 @@ def face_analysis(det_size: int | None = None) -> FaceAnalysis:
 
 
 def decode_image(image_bytes: bytes) -> np.ndarray:
+    try:
+        with Image.open(BytesIO(image_bytes)) as source:
+            width, height = source.size
+            if width <= 0 or height <= 0:
+                raise ValueError("Image dimensions are invalid")
+            if width * height > settings.max_image_pixels:
+                raise ValueError("Image dimensions are too large")
+            if source.format not in {"JPEG", "PNG", "WEBP"}:
+                raise ValueError("Unsupported image format")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("Uploaded file is not a valid image") from exc
+
     array = np.frombuffer(image_bytes, dtype=np.uint8)
     image = cv2.imdecode(array, cv2.IMREAD_COLOR)
     if image is None:

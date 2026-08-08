@@ -148,6 +148,12 @@ export async function deleteEvent(accessToken: string, eventId: string) {
   return apiFetch<void>(`/events/${eventId}`, accessToken, { method: "DELETE" });
 }
 
+export async function deleteGuestSearch(accessToken: string, sessionId: string) {
+  return apiFetch<void>(`/events/search-sessions/${sessionId}`, accessToken, {
+    method: "DELETE",
+  });
+}
+
 export async function restoreEvent(accessToken: string, eventId: string) {
   return apiFetch<Event>(`/events/${eventId}/restore`, accessToken, { method: "POST" });
 }

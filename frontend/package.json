@@ -6,7 +6,8 @@
     "dev": "set NEXT_DIST_DIR=.next-dev&& next dev",
     "build": "set NEXT_DIST_DIR=.next-build&& next build",
     "start": "set NEXT_DIST_DIR=.next-build&& next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit --incremental false"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

@@ -5,9 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 type SearchPhoto = {
   id: string;
-  thumbnail_url: string | null;
-  drive_url: string | null;
-  filename: string;
+  access_token: string;
 };
 
 type SearchResult = {
@@ -22,8 +20,7 @@ type Props = {
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
-const WATERMARK_LOGO_URL =
-  "/WhatsApp_Image_2026-06-26_at_7.45.53_PM-removebg-preview.png";
+const MAX_SELFIE_BYTES = 8 * 1024 * 1024;
 
 export default function PublicEventSearch({ slug, ready }: Props) {
   const [file, setFile] = useState<File | null>(null);
@@ -89,6 +86,10 @@ export default function PublicEventSearch({ slug, ready }: Props) {
   }
 
   function setSelfieFile(nextFile: File | null) {
+    if (nextFile && nextFile.size > MAX_SELFIE_BYTES) {
+      setError("Choose an image smaller than 8 MB.");
+      return;
+    }
     if (selfiePreviewUrl) {
       URL.revokeObjectURL(selfiePreviewUrl);
     }
@@ -223,6 +224,7 @@ export default function PublicEventSearch({ slug, ready }: Props) {
     formData.append("guest_name", guestName.trim());
     formData.append("guest_phone", guestPhone.trim());
     formData.append("guest_email", guestEmail.trim().toLowerCase());
+    formData.append("privacy_consent", "true");
     formData.append("selfie", file);
 
     try {
@@ -432,7 +434,8 @@ export default function PublicEventSearch({ slug, ready }: Props) {
           />
           <span>
             I confirm this selfie is mine or I have permission to use it, and I
-            understand it will be processed only to find matching event photos.
+              understand it will be processed only to find matching event photos. See
+              the <a href="/privacy" target="_blank" className="font-bold underline">privacy notice</a>.
           </span>
         </label>
 
@@ -482,49 +485,36 @@ export default function PublicEventSearch({ slug, ready }: Props) {
             </div>
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5">
-              {result.photos.map((photo) => (
+              {result.photos.map((photo) => {
+                const accessToken = encodeURIComponent(photo.access_token);
+                return (
                 <article
                   key={photo.id}
                   className="group overflow-hidden rounded-[1.75rem] border border-[#e5d8c3] bg-[#fffaf1]/85 shadow-xl shadow-[#24483f]/10"
                 >
                   <div className="relative overflow-hidden bg-[#17201d]">
                     <img
-                      src={`${API_URL}/public/events/${slug}/photos/${photo.id}/thumbnail`}
-                      alt={photo.filename}
+                      src={`${API_URL}/public/events/${slug}/photos/${photo.id}/thumbnail?token=${accessToken}`}
+                      alt="Matched event photo"
                       className="h-64 w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                    <img
-                      src={WATERMARK_LOGO_URL}
-                      alt=""
-                      aria-hidden="true"
-                      className="pointer-events-none absolute right-4 top-4 h-12 max-w-[42%] object-contain opacity-85 drop-shadow-md"
                     />
                   </div>
                   <div className="p-5">
-                    <p className="truncate text-sm font-black text-[#17201d]">{photo.filename}</p>
+                    <p className="truncate text-sm font-black text-[#17201d]">Your matched photo</p>
                     <div className="mt-4 flex flex-wrap gap-3">
                       <a
-                        href={`${API_URL}/public/events/${slug}/photos/${photo.id}/download`}
+                        href={`${API_URL}/public/events/${slug}/photos/${photo.id}/download?token=${accessToken}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded-full bg-[#24483f] px-4 py-2 text-sm font-black text-white transition hover:bg-[#132b26]"
                       >
                         Open photo
                       </a>
-                      {photo.drive_url && (
-                        <a
-                          href={photo.drive_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-full border border-[#d7c8af] px-4 py-2 text-sm font-black text-[#24483f] transition hover:border-[#24483f]"
-                        >
-                          View in Drive
-                        </a>
-                      )}
                     </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

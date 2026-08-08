@@ -74,6 +74,7 @@ CREATE INDEX ON face_embeddings USING ivfflat (embedding vector_cosine_ops)
 | guest_name | VARCHAR(255) | Guest-provided name for search follow-up |
 | guest_phone | VARCHAR(50) | Guest-provided phone number |
 | guest_email | VARCHAR(255) | Guest-provided email |
+| consented_at | TIMESTAMPTZ | Evidence that required search consent was submitted |
 | match_count | INTEGER | Number of photos returned |
 | searched_at | TIMESTAMPTZ | Selfie is not stored |
 

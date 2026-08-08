@@ -51,6 +51,15 @@ def create_event(
     return event_service.get_event(db, photographer, event.id)
 
 
+@router.delete("/search-sessions/{session_id}", status_code=204)
+def delete_guest_search(
+    session_id: uuid.UUID,
+    photographer: Photographer = Depends(get_current_photographer),
+    db: Session = Depends(get_db),
+):
+    event_service.delete_guest_search(db, photographer, session_id)
+
+
 @router.get("/{event_id}", response_model=EventResponse)
 def get_event(
     event_id: uuid.UUID,

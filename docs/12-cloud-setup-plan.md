@@ -249,6 +249,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbG...
 # App
 SECRET_KEY=generate-a-random-32-char-string
 DEBUG=true
+EXPOSE_API_DOCS=false
 FRONTEND_URL=http://localhost:3000
 
 # Supabase
@@ -256,6 +257,7 @@ DATABASE_URL=postgresql://postgres.[ref]:[password]@...pooler.supabase.com:6543/
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase-settings
 SUPABASE_SERVICE_ROLE_KEY=eyJhbG...  # backend only
+SUPABASE_JWT_AUDIENCE=authenticated
 GOOGLE_CLIENT_ID=your-google-oauth-client-id
 GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
 
@@ -263,6 +265,14 @@ GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
 REDIS_URL=redis://default:password@host:port
 CELERY_BROKER_URL=redis://default:password@host:port
 CELERY_RESULT_BACKEND=redis://default:password@host:port
+
+# Privacy and public-search controls
+SEARCH_SESSION_RETENTION_DAYS=30
+MAX_SELFIE_BYTES=8388608
+MAX_IMAGE_PIXELS=25000000
+PUBLIC_SEARCHES_PER_MINUTE=10
+TRUSTED_PROXY_HOPS=0
+PHOTO_ACCESS_TOKEN_MINUTES=15
 
 # Face recognition
 SIMILARITY_THRESHOLD=0.4

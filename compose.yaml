@@ -1,0 +1,37 @@
+name: smartgallery-local
+
+services:
+  database:
+    image: pgvector/pgvector:0.8.2-pg17-bookworm
+    environment:
+      POSTGRES_DB: smartgallery
+      POSTGRES_USER: smartgallery
+      POSTGRES_PASSWORD: smartgallery_local_only
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - smartgallery-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartgallery -d smartgallery"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - smartgallery-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  smartgallery-postgres:
+  smartgallery-redis:

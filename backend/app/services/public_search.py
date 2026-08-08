@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Event, FaceEmbedding, Photo, SearchSession
+from app.photo_access import create_photo_access_token
 from app.schemas import PublicPhotoResponse, PublicSearchResponse
 from app.services import faces
 
@@ -53,31 +54,31 @@ def search_event_photos(
         .all()
     )
 
+    matched_photos: list[Photo] = []
     seen: set = set()
-    photos: list[PublicPhotoResponse] = []
     for photo, _score in rows:
-        if photo.id in seen:
-            continue
-        seen.add(photo.id)
-        photos.append(
-            PublicPhotoResponse(
-                id=photo.id,
-                thumbnail_url=photo.thumbnail_url,
-                drive_url=photo.drive_url,
-                filename=photo.filename,
-            )
-        )
+        if photo.id not in seen:
+            seen.add(photo.id)
+            matched_photos.append(photo)
 
     search_session = SearchSession(
         event_id=event.id,
         guest_name=guest_name,
         guest_phone=guest_phone,
         guest_email=guest_email,
-        match_count=len(photos),
+        match_count=len(matched_photos),
     )
     db.add(search_session)
     db.commit()
     db.refresh(search_session)
+
+    photos = [
+        PublicPhotoResponse(
+            id=photo.id,
+            access_token=create_photo_access_token(event.id, photo.id, search_session.id),
+        )
+        for photo in matched_photos
+    ]
 
     return PublicSearchResponse(
         session_id=search_session.id,

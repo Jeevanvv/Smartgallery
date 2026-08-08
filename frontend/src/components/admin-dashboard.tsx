@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import {
@@ -8,6 +9,7 @@ import {
   type DashboardStats,
   type DriveFolderListResponse,
   deleteEvent,
+  deleteGuestSearch,
   listEvents,
   permanentlyDeleteEvent,
   reindexEvent,
@@ -432,6 +434,23 @@ export default function AdminDashboard() {
       setNotice("Event archived. You can restore or permanently delete it from Archived.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete event");
+    }
+  }
+
+  async function handleDeleteGuestSearch(sessionId: string) {
+    const confirmed = window.confirm("Delete this guest's contact and search record?");
+    if (!confirmed) return;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
+
+    try {
+      await deleteGuestSearch(session.access_token, sessionId);
+      await refreshEventData();
+      setNotice("Guest search record deleted.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete guest search");
     }
   }
 
@@ -1186,16 +1205,17 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-2xl border border-[#e5d8c3] bg-white/75">
-                  <div className="hidden grid-cols-[1.1fr_1fr_1fr_0.7fr_1fr] gap-3 border-b border-[#e5d8c3] bg-[#f7f1e8] px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#6f756f] lg:grid">
+                  <div className="hidden grid-cols-[1.1fr_1fr_1fr_0.7fr_1fr_auto] gap-3 border-b border-[#e5d8c3] bg-[#f7f1e8] px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#6f756f] lg:grid">
                     <span>Guest</span>
                     <span>Contact</span>
                     <span>Event</span>
                     <span>Matches</span>
                     <span>When</span>
+                    <span>Action</span>
                   </div>
                   <div className="divide-y divide-[#e5d8c3]">
                     {guestSearches.map((search) => (
-                      <div key={search.id} className="grid gap-3 px-4 py-4 text-sm lg:grid-cols-[1.1fr_1fr_1fr_0.7fr_1fr] lg:items-center">
+                      <div key={search.id} className="grid gap-3 px-4 py-4 text-sm lg:grid-cols-[1.1fr_1fr_1fr_0.7fr_1fr_auto] lg:items-center">
                         <div>
                           <p className="font-black text-[#17201d]">{search.guest_name || "Guest"}</p>
                           <p className="mt-1 text-xs font-medium text-[#6f756f]">ID {search.id.slice(0, 8).toUpperCase()}</p>
@@ -1209,6 +1229,13 @@ export default function AdminDashboard() {
                           {search.match_count} photos
                         </span>
                         <p className="font-medium text-[#5f6762]">{new Date(search.searched_at).toLocaleString()}</p>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteGuestSearch(search.id)}
+                          className="w-fit rounded-full border border-red-200 px-3 py-1 text-xs font-black text-red-700 hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
                       </div>
                     ))}
                   </div>

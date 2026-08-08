@@ -2,6 +2,7 @@ import sys
 import logging
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import settings
 from app.database import SessionLocal
@@ -27,7 +28,11 @@ celery_app.conf.update(
         "events.auto_sync": {
             "task": "events.auto_sync",
             "schedule": max(settings.auto_sync_interval_minutes, 1) * 60,
-        }
+        },
+        "search_sessions.cleanup": {
+            "task": "search_sessions.cleanup",
+            "schedule": crontab(hour=3, minute=0),
+        },
     },
 )
 
@@ -74,5 +79,16 @@ def auto_sync_events_task():
                 logger.exception("Automatic Drive sync failed for event %s", event.id)
 
         return {"synced_events": synced_events, "queued_photos": queued_photos}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="search_sessions.cleanup")
+def cleanup_search_sessions_task():
+    from app.services.privacy import delete_expired_search_sessions
+
+    db = SessionLocal()
+    try:
+        return {"deleted": delete_expired_search_sessions(db)}
     finally:
         db.close()

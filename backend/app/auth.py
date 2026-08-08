@@ -1,10 +1,13 @@
 import uuid
+import ipaddress
+import secrets
 from dataclasses import dataclass
 
 import httpx
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -12,6 +15,7 @@ from app.database import get_db
 from app.models import Photographer
 
 security = HTTPBearer(auto_error=False)
+LOCAL_DEV_USER_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
 
 
 @dataclass
@@ -72,13 +76,15 @@ def _verify_via_jwt_secret(token: str) -> SupabaseUser:
         )
 
     try:
+        issuer = f"{settings.supabase_url.rstrip('/')}/auth/v1"
         payload = jwt.decode(
             token,
             settings.supabase_jwt_secret,
             algorithms=["HS256"],
-            options={"verify_aud": False},
+            audience=settings.supabase_jwt_audience,
+            issuer=issuer,
         )
-    except JWTError as exc:
+    except PyJWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -96,6 +102,7 @@ def decode_supabase_jwt(token: str) -> SupabaseUser:
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> SupabaseUser:
     if credentials is None:
@@ -103,6 +110,26 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization header required",
         )
+
+    if settings.local_dev_auth and secrets.compare_digest(
+        credentials.credentials, settings.local_dev_auth_token
+    ):
+        client_host = request.client.host if request.client else ""
+        try:
+            is_loopback = ipaddress.ip_address(client_host).is_loopback
+        except ValueError:
+            is_loopback = client_host == "localhost"
+        if not is_loopback:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Local development authentication requires a loopback client",
+            )
+        return SupabaseUser(
+            id=LOCAL_DEV_USER_ID,
+            email=settings.local_dev_user_email,
+            name="Local Developer",
+        )
+
     return decode_supabase_jwt(credentials.credentials)
 
 
