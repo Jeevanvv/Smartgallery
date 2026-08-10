@@ -6,7 +6,7 @@ Chosen for lowest cost, fastest build time, and best free tier availability. **N
 
 | Layer | Choice | Cost |
 |-------|--------|------|
-| Framework | Next.js 14 (App Router, React) | Free |
+| Framework | Next.js 16 (App Router, React) | Free |
 | Hosting | Vercel | Free tier |
 | Styling | Tailwind CSS | Free |
 | Auth (photographer) | Supabase Auth + Google OAuth | Free |

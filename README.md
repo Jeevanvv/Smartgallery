@@ -3,7 +3,7 @@
 [![CI](https://github.com/sayan365/smartgallery/actions/workflows/ci.yml/badge.svg)](https://github.com/sayan365/smartgallery/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Next.js 14](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 
 **Open-source, AI-powered event photo discovery using face recognition and Google Drive.**
 
@@ -68,7 +68,7 @@ through expiring, event-bound access tokens.
 
 | Layer | Technology |
 | --- | --- |
-| Web application | Next.js 14, React 18, TypeScript, Tailwind CSS |
+| Web application | Next.js 16, React 18, TypeScript, Tailwind CSS |
 | API | Python 3.11+, FastAPI, SQLAlchemy, Alembic |
 | Face recognition | InsightFace, ONNX Runtime, OpenCV |
 | Database | PostgreSQL with pgvector; Supabase recommended for hosted deployments |
@@ -97,6 +97,9 @@ Follow the [cloud setup guide](./docs/12-cloud-setup-plan.md) for the complete c
 redirect URLs, environment variables, migrations, and verification checklist.
 
 ## Quick start
+
+Prerequisites: Node.js 20.9 or newer, Python 3.11 or newer, and Git. Docker Desktop
+is optional for the isolated local database setup.
 
 ### 1. Clone and install the backend
 

@@ -315,7 +315,7 @@ Supabase Auth is **only for photographers**, not clients.
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+
 - Python 3.11+
 - Accounts above configured
 

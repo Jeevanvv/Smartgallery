@@ -1,4 +1,5 @@
 import AdminDashboard from "@/components/admin-dashboard";
+import Link from "next/link";
 
 export default function AdminPage() {
   return (
@@ -8,12 +9,12 @@ export default function AdminPage() {
           <span className="text-lg font-black tracking-tight text-[#17201d]">
             SmartGallery Studio
           </span>
-          <a
+          <Link
             href="/"
             className="rounded-full border border-[#d7c8af] bg-white/60 px-4 py-2 text-sm font-bold text-[#24483f] transition hover:border-[#24483f] hover:bg-white"
           >
             Home
-          </a>
+          </Link>
         </div>
       </header>
       <AdminDashboard />
