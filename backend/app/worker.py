@@ -10,13 +10,23 @@ from app.models import Event, Photographer
 from app.services import drive as drive_service
 from app.services.indexing import process_photo_indexing
 
+import ssl
+
 logger = logging.getLogger(__name__)
+
+broker_url = settings.celery_broker_url or settings.redis_url
+backend_url = settings.celery_result_backend or settings.redis_url
+use_ssl = {"ssl_cert_reqs": ssl.CERT_NONE} if broker_url.startswith("rediss://") else None
 
 celery_app = Celery(
     "smartgallery",
-    broker=settings.celery_broker_url or settings.redis_url,
-    backend=settings.celery_result_backend or settings.redis_url,
+    broker=broker_url,
+    backend=backend_url,
 )
+
+if use_ssl:
+    celery_app.conf.broker_use_ssl = use_ssl
+    celery_app.conf.redis_backend_use_ssl = use_ssl
 
 celery_app.conf.update(
     task_serializer="json",

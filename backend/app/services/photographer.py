@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.auth import SupabaseUser
 from app.config import settings
@@ -51,6 +52,22 @@ def upsert_photographer(
             ),
         )
         db.add(photographer)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            # Another request already created this photographer (race condition).
+            # Fall back to the existing record and update it.
+            photographer = db.query(Photographer).filter(Photographer.email == user.email).first()
+            if photographer:
+                photographer.supabase_user_id = user.id
+                if user.name:
+                    photographer.name = user.name
+                if token_payload:
+                    photographer.google_oauth_token = encrypt_token_data(
+                        settings.secret_key, token_payload
+                    )
+                db.commit()
     else:
         photographer.supabase_user_id = user.id
         if user.name:
@@ -59,7 +76,7 @@ def upsert_photographer(
             photographer.google_oauth_token = encrypt_token_data(
                 settings.secret_key, token_payload
             )
+        db.commit()
 
-    db.commit()
     db.refresh(photographer)
     return photographer

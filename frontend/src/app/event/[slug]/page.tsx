@@ -4,7 +4,7 @@ import PublicEventSearch from "@/components/public-event-search";
 export const dynamic = "force-dynamic";
 
 type Props = {
-  params: { slug: string };
+  params: Promise<{ slug: string }> | { slug: string };
 };
 
 async function getEvent(slug: string) {
@@ -22,7 +22,8 @@ async function getEvent(slug: string) {
 }
 
 export default async function EventPage({ params }: Props) {
-  const event = await getEvent(params.slug);
+  const resolvedParams = await Promise.resolve(params);
+  const event = await getEvent(resolvedParams.slug);
 
   if (!event) {
     return (
