@@ -19,5 +19,5 @@ cryptography==50.0.0
 pillow==12.3.0
 insightface==1.0.1
 onnxruntime>=1.24.1,<1.27
-opencv-python-headless>=4.13.0.92,<4.14
+opencv-python-headless>=5.0.0.93,<5.1
 numpy>=2.4.6,<2.5
